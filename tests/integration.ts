@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+const base=process.env.TEST_BASE_URL||'http://localhost:3000';const origin={Origin:base};
+const adminLogin=await fetch(base+'/api/login',{method:'POST',headers:{...origin,'Content-Type':'application/json'},body:JSON.stringify({username:'Admin',password:'Admin'})});assert.equal(adminLogin.status,200,'Admin/Admin must authenticate through backend');
+async function login(role:string){const r=await fetch(base+'/api/login',{method:'POST',headers:{...origin,'Content-Type':'application/json'},body:JSON.stringify({email:role+'@boiler.local',password:process.env.SEED_PASSWORD})});assert.equal(r.status,200);return r.headers.get('set-cookie')!.split(';')[0];}
+const engineer=await login('engineer'),viewer=await login('viewer');
+const auth={Authorization:`Bearer ${process.env.PORTAL_API_TOKEN}`,'Content-Type':'application/json'};
+async function call(path:string,method:string,body:any,headers:Record<string,string>=auth){return fetch(base+'/api/'+path,{method,headers,body:JSON.stringify(body)});}
+const file=new FormData();file.set('file',new Blob([new Uint8Array([0x50,0x4b,3,4])]),'Demo-integration.xlsx');file.set('asset_id','boiler-1');
+assert.equal((await fetch(base+'/api/uploads',{method:'POST',headers:{...origin,Cookie:viewer},body:file})).status,403);
+const uploaded=await fetch(base+'/api/uploads',{method:'POST',headers:{...origin,Cookie:engineer},body:file});assert.equal(uploaded.status,202);const {upload_id}=await uploaded.json();
+const common={upload_id,asset_id:'boiler-1'};const row={observed_date:'2026-11-10',timezone:'Asia/Bangkok',source_sheet:'Daily',source_row:2,metrics:{steam_pressure:{value:0,unit:'bar',quality:'good'}}};assert.equal((await call('v1/observations','POST',{...common,rows:[row,{...row,source_row:3,observed_date:'2026-11-11',metrics:{steam_pressure:{value:null,unit:'bar',quality:'missing'}}}]})).status,200);
+const payload={...common,event_key:'integration-'+Date.now(),observed_date:'2026-11-10',timezone:'Asia/Bangkok',granularity:'daily',category:'Instrument/Data anomaly',severity:'warning',status:'new',rule_id:'test',rule_version:'1',source:{file:'Demo-integration.xlsx',sheet:'Daily',row:2},evidence:[{metric:'Steam Pressure',value:0,unit:'bar'}],diagnosis:'Demo test',suspected_causes:['transmitter'],reference_docs:[],analysis_method:'rules'};
+const created=await call('v1/alerts','POST',payload);assert.equal(created.status,201);const alert=await created.json();
+const review={result:'instrument_issue',cause:'Demo transmitter',correction:'Demo replace',tags:'PT-001',outcome:'Demo normal',reviewed_at:new Date().toISOString(),status:'resolved'};const uiHeaders={...origin,'Content-Type':'application/json',Cookie:engineer};assert.equal((await call(`alerts/${alert.id}/feedback`,'POST',review,{...uiHeaders,Cookie:viewer})).status,403);assert.equal((await call(`alerts/${alert.id}/feedback`,'POST',review,uiHeaders)).status,201);
+const duplicate=await call('v1/alerts','POST',payload);assert.equal(duplicate.status,200);assert.equal((await duplicate.json()).status,'resolved');
+assert.equal((await fetch(base+'/api/v1/feedback')).status,401);
+const exported=await fetch(base+'/api/v1/feedback?limit=200',{headers:auth});assert.equal(exported.status,200);assert((await exported.json()).data.some((f:any)=>f.alert_id===alert.id&&f.result==='instrument_issue'&&f.alert_evidence.evidence.length));
+const portal=await (await fetch(base+'/api/portal',{headers:{Cookie:engineer}})).json();assert(portal.observations.some((r:any)=>r.upload_id===upload_id&&r.metrics.steam_pressure.value===null));assert(portal.alerts.some((a:any)=>a.id===alert.id));assert.equal((await call(`v1/uploads/${upload_id}`,'PATCH',{status:'completed',row_count:2,rejected_count:0,alert_count:1,errors:[]})).status,200);
+console.log('PASS: upload → observations/alert → chart source → feedback → export; duplicates, missing, viewer, token');

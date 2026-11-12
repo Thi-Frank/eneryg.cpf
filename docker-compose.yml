@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: boiler
+      POSTGRES_PASSWORD: boiler
+      POSTGRES_DB: boiler
+    ports: ["5432:5432"]
+    volumes: ["boiler_data:/var/lib/postgresql/data"]
+volumes:
+  boiler_data:

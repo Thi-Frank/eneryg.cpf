@@ -1,0 +1,2 @@
+import {createServer} from 'node:http';
+createServer(async(req,res)=>{let body='';for await(const chunk of req)body+=chunk.toString('latin1');const match=body.match(/name="upload_id"\r\n\r\n([^\r]+)/);if(req.headers.authorization!==`Bearer ${process.env.N8N_INGEST_TOKEN}`||!match){res.writeHead(401).end();return;}res.writeHead(202,{'Content-Type':'application/json'}).end(JSON.stringify({upload_id:match[1]}));}).listen(5678,()=>console.log('n8n acknowledgement mock :5678 (callbacks are driven by integration test)'));

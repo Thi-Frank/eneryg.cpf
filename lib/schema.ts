@@ -1,0 +1,8 @@
+import {z} from 'zod';
+export const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s=>!isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s);
+export const status=z.enum(['new','investigating','resolved','false_positive']);
+export const base=z.object({upload_id:z.string().uuid(),asset_id:z.string().min(1)});
+export const observations=base.extend({rows:z.array(z.object({observed_date:date,timezone:z.literal('Asia/Bangkok'),source_sheet:z.string().min(1),source_row:z.number().int().positive(),metrics:z.record(z.string(),z.object({value:z.number().finite().nullable(),unit:z.string(),quality:z.enum(['good','uncertain','bad','missing'])}))})).max(20000)});
+export const alert=base.extend({event_key:z.string().min(1).max(300),observed_date:date,timezone:z.literal('Asia/Bangkok'),granularity:z.literal('daily'),category:z.string().min(1),severity:z.enum(['info','warning','high']),status,rule_id:z.string(),rule_version:z.string(),source:z.object({file:z.string(),sheet:z.string(),row:z.number().int().positive()}),evidence:z.array(z.object({metric:z.string(),value:z.number().nullable(),unit:z.string(),baseline:z.number().nullable().optional(),quality:z.string().optional()})),diagnosis:z.string(),suspected_causes:z.array(z.string()),reference_docs:z.array(z.object({title:z.string(),url:z.string().url().refine(s=>/^https?:/.test(s))})),analysis_method:z.enum(['rules','rules_with_ai_summary'])});
+export const feedback=z.object({result:z.enum(['confirmed_fault','instrument_issue','data_issue','normal_operation','unknown']),cause:z.string().max(10000),correction:z.string().max(10000),tags:z.string().max(3000),outcome:z.string().max(10000),reviewed_at:z.string().datetime({offset:true}),status,attachments:z.array(z.string().uuid()).default([])});
+

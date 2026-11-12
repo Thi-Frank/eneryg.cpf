@@ -1,0 +1,11 @@
+import {sql} from '../lib/db';
+import {hash} from 'bcryptjs';
+import {randomUUID} from 'crypto';
+const password=process.env.SEED_PASSWORD;if(!password||password.length<12)throw new Error('Set SEED_PASSWORD (12+ characters)');
+for(const role of ['viewer','engineer','admin'])await sql`INSERT INTO users(id,email,name,password_hash,role) VALUES(${randomUUID()},${role+'@boiler.local'},${'Demo '+role},${await hash(password,12)},${role}) ON CONFLICT(email) DO NOTHING`;
+const upload='11111111-1111-4111-8111-111111111111';
+await sql`INSERT INTO uploads(id,asset_id,filename,status,row_count,alert_count) VALUES(${upload},'boiler-1','Demo-daily.xlsx','completed',7,1) ON CONFLICT DO NOTHING`;
+for(let i=1;i<=7;i++){const value=i===4?null:i===6?0:6.8+i*.03;await sql`INSERT INTO observations VALUES(${upload},'boiler-1',${'2026-11-'+String(i).padStart(2,'0')},'Asia/Bangkok','Demo Daily',${i+1},${sql.json({steam_pressure:{value,unit:'bar',quality:value===null?'missing':'good'}})}) ON CONFLICT DO NOTHING`;}
+const payload={event_key:'demo-pressure-zero-20261106',upload_id:upload,asset_id:'boiler-1',observed_date:'2026-11-06',timezone:'Asia/Bangkok',granularity:'daily',category:'Instrument/Data anomaly',severity:'warning',status:'new',rule_id:'steam-pressure-conflict',rule_version:'1',source:{file:'Demo-daily.xlsx',sheet:'Demo Daily',row:7},evidence:[{metric:'Steam Pressure',value:0,unit:'bar',baseline:6.8},{metric:'Boiler Pressure',value:6.89,unit:'bar'},{metric:'Running Time',value:24,unit:'ชั่วโมง'},{metric:'Steam Flow',value:20.6,unit:'t/h',quality:'ค่าที่รายงาน ต้องยืนยันความน่าเชื่อถือของ Tag'}],diagnosis:'ค่า Steam Pressure เป็นศูนย์ขณะที่ข้อมูลแรงดันในตัวหม้อและชั่วโมงเดินเครื่องบ่งชี้ว่า Boiler มีการเดินเครื่อง สัญญาณขัดแย้งกันและต้องตรวจหน้างาน',suspected_causes:['Steam Pressure transmitter','สัญญาณ 4–20 mA หรือ PLC input','Tag mapping และ scaling','Main Steam Stop Valve และตำแหน่งจุดวัด','การรวมข้อมูลรายวันผิดช่วงเวลา'],reference_docs:[],analysis_method:'rules'};
+await sql`INSERT INTO alerts(id,event_key,upload_id,asset_id,observed_date,category,severity,status,payload) VALUES(${randomUUID()},${payload.event_key},${upload},'boiler-1','2026-11-06',${payload.category},'warning','new',${sql.json(payload)}) ON CONFLICT DO NOTHING`;
+console.log('Demo seeded: viewer/engineer/admin@boiler.local');await sql.end();
