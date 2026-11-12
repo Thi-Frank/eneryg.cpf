@@ -5,6 +5,7 @@
 - TypeScript: ผ่าน (`tsc --noEmit`)
 - Production build: ผ่าน (`next build --webpack` บน Node 22)
 - Schema/login/origin tests: 4 ผ่าน (missing/null, invalid calendar date, unknown feedback, invalid feedback enum, Admin username mapping และ trusted origin หลัง proxy)
+- UX notification update: TypeScript และ unit tests รวม 5 กรณีผ่าน เพิ่มการตรวจไม่แจ้ง Alert ซ้ำ การเรียงตาม severity การยกเว้นเคสที่ตรวจไปแล้ว และการรับทราบโดยไม่แก้สถานะต้นทาง
 - Dependency audit หลังปรับ Next.js 16.4.6 และ Zod 4.6.7: 0 vulnerabilities
 - Integration test: ผ่านบน local PostgreSQL-compatible engine และ n8n acknowledgement mock รวม Admin/Admin login, upload, observations, alerts, feedback, export, duplicate preservation, missing, viewer denial และ API token
 - Browser visual/interaction acceptance: ยังไม่ตรวจ

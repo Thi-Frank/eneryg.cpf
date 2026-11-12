@@ -1,0 +1,32 @@
+'use client';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {NotificationAlert,pendingAlerts} from '@/lib/notifications';
+const levels:Record<string,string>={high:'เร่งด่วนสูง',warning:'ควรตรวจสอบ',info:'เพื่อทราบ'};
+export default function AlertNotifications({alerts,userId,onOpen}:{alerts:NotificationAlert[];userId:string;onOpen:(alert:NotificationAlert)=>void}){
+ const [ack,setAck]=useState<Set<string>>(new Set()),[ready,setReady]=useState(false),[enabled,setEnabled]=useState(false),[open,setOpen]=useState(false),[test,setTest]=useState(false),[audioError,setAudioError]=useState('');
+ const audio=useRef<AudioContext|null>(null),dialog=useRef<HTMLDialogElement>(null),noticed=useRef(new Set<string>());
+ const storageKey=`boiler:acknowledged:${userId}`;
+ const pending=pendingAlerts(alerts,ack),current=pending[0];
+ const tone=useCallback((severity='warning')=>{
+  const context=audio.current;if(!context||context.state!=='running')return;
+  const frequencies=severity==='high'?[880,660,880]:severity==='info'?[520]:[660,520];
+  frequencies.forEach((frequency,i)=>{const oscillator=context.createOscillator(),gain=context.createGain(),start=context.currentTime+i*.26;oscillator.type='sine';oscillator.frequency.value=frequency;gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(.16,start+.025);gain.gain.exponentialRampToValueAtTime(.001,start+.2);oscillator.connect(gain);gain.connect(context.destination);oscillator.start(start);oscillator.stop(start+.22);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};});
+ },[]);
+ useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem(storageKey)||'[]');if(Array.isArray(saved))setAck(new Set(saved.filter(v=>typeof v==='string')));}catch{}setReady(true);return()=>{audio.current?.close().catch(()=>{});};},[storageKey]);
+ useEffect(()=>{if(!ready)return;const fresh=pending.filter(a=>!noticed.current.has(a.id));if(fresh.length){fresh.forEach(a=>noticed.current.add(a.id));setTest(false);setOpen(true);if(enabled)tone(fresh[0].severity);}},[alerts,ack,ready,enabled,tone]);
+ useEffect(()=>{const el=dialog.current;if(!el)return;if(open&&!el.open)el.showModal();else if(!open&&el.open)el.close();},[open]);
+ useEffect(()=>{const sync=(event:StorageEvent)=>{if(event.key!==storageKey)return;try{const values=JSON.parse(event.newValue||'[]');if(Array.isArray(values))setAck(new Set(values.filter(v=>typeof v==='string')));}catch{}};window.addEventListener('storage',sync);return()=>window.removeEventListener('storage',sync);},[storageKey]);
+ useEffect(()=>{if(ready&&!test&&!pending.length)setOpen(false);},[ready,test,pending.length]);
+ useEffect(()=>{const original=document.title;document.title=pending.length?`(${pending.length}) รอรับทราบ · Boiler 1`:'Boiler 1 | อสร.หนองจอก';return()=>{document.title=original;};},[pending.length]);
+ async function toggleSound(){
+  if(enabled){await audio.current?.suspend();setEnabled(false);return;}
+  try{if(!audio.current){const context=new AudioContext();audio.current=context;context.addEventListener('statechange',()=>{if(context.state!=='running')setEnabled(false);});}await audio.current.resume();if(audio.current.state!=='running')throw new Error();setEnabled(true);setAudioError('');tone(current?.severity);}catch{setEnabled(false);setAudioError('เปิดเสียงไม่ได้ กรุณาตรวจเสียงและสิทธิ์ของเบราว์เซอร์');}
+ }
+ function acknowledge(ids:string[]){const next=new Set([...ack,...ids]);setAck(next);try{localStorage.setItem(storageKey,JSON.stringify([...next].slice(-3000)));}catch{}setOpen(false);setTest(false);}
+ const metric=current?.payload.evidence[0];
+ return <><div className={`notification-bar ${pending.length?'attention':''}`} aria-label="การแจ้งเตือน"><div><strong>{pending.length?`${pending.length} เคสรอรับทราบ`:'ไม่มีเคสใหม่รอรับทราบ'}</strong><span>ตรวจข้อมูลทุก 15 วินาที เมื่อเปิดหน้านี้ไว้</span></div><div className="notification-actions"><button className={enabled?'sound-toggle enabled':'sound-toggle'} onClick={toggleSound} aria-pressed={enabled}>{enabled?'เสียง: เปิด':'เปิดเสียงแจ้งเตือน'}</button><button className="quiet-button" onClick={()=>{setTest(true);setOpen(true);if(enabled)tone('warning');}}>ทดสอบ</button>{pending.length>0&&<button className="review-button" onClick={()=>{setTest(false);setOpen(true);}}>ดูเคสที่รอรับทราบ</button>}</div></div>{audioError&&<p role="status" className="audio-error">{audioError}</p>}
+ <dialog ref={dialog} role="alertdialog" aria-modal="true" className={`alert-dialog ${test?'test':current?.severity||'info'}`} onCancel={()=>setOpen(false)} aria-labelledby="alert-dialog-title" aria-describedby="alert-dialog-description"><div className="dialog-stripe"/><div className="dialog-content"><div className="dialog-overline"><span className="alarm-symbol" aria-hidden="true">!</span>{test?'ทดสอบระบบแจ้งเตือน':`แจ้งเตือน · ${levels[current?.severity||'info']}`}</div><h2 id="alert-dialog-title">{test?'เมื่อมีเคสใหม่ คุณจะเห็นหน้าต่างนี้':`${pending.length} เคสใหม่รอการตรวจสอบ`}</h2><p id="alert-dialog-description">{test?'เป็นเพียงการทดสอบ ไม่มีการสร้าง Alert หรือแก้ข้อมูลเครื่องจักร':'โปรดตรวจหลักฐานและมอบหมายการตรวจหน้างาน ผลคัดกรองยังไม่ใช่ข้อยืนยันสาเหตุ'}</p>
+ {!test&&current&&<div className="alert-preview"><div className="preview-heading"><strong>Boiler 1 · อสร.หนองจอก</strong>{current.payload.source.file.startsWith('Demo')&&<span className="demo-label">ข้อมูล Demo</span>}</div><div className="alert-reading">{metric?.metric}<strong>{metric?.value??'ไม่มีข้อมูล'} <small>{metric?.unit}</small></strong></div><p>{current.category}</p><dl><div><dt>วันที่ข้อมูล</dt><dd>{current.observed_date.slice(0,10)}</dd></div><div><dt>ระดับตามกฎ</dt><dd>{levels[current.severity]}</dd></div></dl></div>}
+ {!enabled&&<p className="sound-hint">ยังไม่เปิดเสียง — กด “เปิดเสียงแจ้งเตือน” เพื่อให้เบราว์เซอร์เล่นเสียงได้</p>}
+ <div className="dialog-actions">{test?<><button onClick={()=>{setOpen(false);setTest(false);}}>ปิดการทดสอบ</button>{!enabled&&<button className="secondary" onClick={toggleSound}>เปิดเสียงแจ้งเตือน</button>}</>:<><button onClick={()=>{if(current){acknowledge([current.id]);onOpen(current);}}}>เปิดเคสเพื่อตรวจสอบ</button><button className="secondary" onClick={()=>acknowledge(pending.map(a=>a.id))}>รับทราบ{pending.length>1?'ทั้งหมด':''}</button>{!enabled&&<button className="quiet-button" onClick={toggleSound}>เปิดเสียง</button>}</>}</div><small className="ack-note">การรับทราบมีผลเฉพาะเบราว์เซอร์นี้ ไม่เปลี่ยนสถานะเคสหรือผลตรวจ</small></div></dialog></>;
+}
