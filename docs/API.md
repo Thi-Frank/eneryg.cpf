@@ -1,5 +1,7 @@
 # n8n API v1
 
+Production base URL: `https://boiler-nongchok.netlify.app`
+
 ทุก inbound request ใช้ `Authorization: Bearer <PORTAL_API_TOKEN>`; JSON ใช้ Content-Type application/json วันที่สังเกตการณ์เป็น YYYY-MM-DD เท่านั้น timezone Asia/Bangkok และ granularity daily เวลา upload/feedback เก็บ timestamptz แยกกัน
 
 ## 1. Portal → n8n

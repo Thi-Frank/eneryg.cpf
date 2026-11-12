@@ -2,6 +2,10 @@
 
 Pilot ภาษาไทย: Next.js App Router + TypeScript + PostgreSQL เก็บผลคัดกรองแยกจากประวัติการตรวจหน้างาน ไม่มีการเขียนคำสั่งไปยังเครื่องจักร ข้อมูลเริ่มต้นทุกเคสระบุ Demo ไม่ใช่ข้อมูลโรงงานจริง
 
+เว็บออนไลน์: https://boiler-nongchok.netlify.app — User `Admin` / Password `Admin`
+
+ดู [การเชื่อม n8n](docs/N8N-CONNECT.md) สำหรับ URL และการตั้ง credential หลังสร้าง n8n workflow
+
 ## รันในเครื่อง
 
 ใช้ Node.js 22 LTS และ Docker (หรือ PostgreSQL 16 ที่มีอยู่)
