@@ -1,0 +1,1190 @@
+{
+  "name": "Boiler 1 – Excel Ingestion, Anomaly Rules & Portal Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "boiler-ingest",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "file"
+        }
+      },
+      "id": "1726179c-5b77-48ec-bbf7-573fddcf2ff8",
+      "name": "Excel Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -848,
+        320
+      ],
+      "webhookId": "acf07ad6-e5fe-4c20-85a6-14e6cc9dab94",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "h52C0kOWBMU8ywpI",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item=$input.first();\nconst body=item.json.body||item.json;\nconst binary=item.binary||{};\nconst key=Object.keys(binary).find(k=>k==='file')||Object.keys(binary)[0];\nconst upload_id=String(body.upload_id||'').trim();\nconst asset_id=String(body.asset_id||'').trim().toLowerCase();\nconst missing=[];\nif(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(upload_id))missing.push('portal upload_id (UUID)');\nif(asset_id!=='boiler-1')missing.push('asset_id must be boiler-1');\nif(!key)missing.push('file');\nconst file_name=key?binary[key].fileName||'upload':'';\nconst file_ext=file_name.split('.').pop().toLowerCase();\nreturn [{json:{valid:!missing.length,missing,upload_id,asset_id,file_name,file_ext,mime_type:key?binary[key].mimeType||'':'',file_type:['xls','xlsx'].includes(file_ext)?file_ext:'unsupported',binary_key:key||'file',source:'webhook',received_at:new Date().toISOString()},binary}];"
+      },
+      "id": "965357fe-fc35-46fa-b8fe-b0ae5bb9c990",
+      "name": "Validate Webhook Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4cbfe283-07b6-4d5b-a62a-7303a6c67497",
+      "name": "Request Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        128,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ upload_id: $json.upload_id, status: 'accepted' }) }}",
+        "options": {
+          "responseCode": 202
+        }
+      },
+      "id": "4c84bc8c-3eed-4994-9120-7eff955549ac",
+      "name": "Respond 202 Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        352,
+        864
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item=$input.first();\nconst body=item.json.body||item.json;\nconst binary=item.binary||{};\nconst key=Object.keys(binary).find(k=>k==='file')||Object.keys(binary)[0];\nconst upload_id=String(body.upload_id||'').trim();\nconst asset_id=String(body.asset_id||'').trim().toLowerCase();\nconst missing=[];\nif(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(upload_id))missing.push('portal upload_id (UUID)');\nif(asset_id!=='boiler-1')missing.push('asset_id must be boiler-1');\nif(!key)missing.push('file');\nconst file_name=key?binary[key].fileName||'upload':'';\nconst file_ext=file_name.split('.').pop().toLowerCase();\nreturn [{json:{valid:!missing.length,missing,upload_id,asset_id,file_name,file_ext,mime_type:key?binary[key].mimeType||'':'',file_type:['xls','xlsx'].includes(file_ext)?file_ext:'unsupported',binary_key:key||'file',source:'webhook',received_at:new Date().toISOString()},binary}];"
+      },
+      "id": "7e8771e0-e66e-4bfc-879f-31af638e44bd",
+      "name": "Validate Upload Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'rejected', error: 'missing_fields', missing: $json.missing, upload_id: $json.upload_id || null, message: 'ต้องส่ง file, upload_id และ asset_id แบบ multipart/form-data / file, upload_id and asset_id are required' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "f171b1d2-cecb-4da8-8f62-24a83af90d2f",
+      "name": "Respond 400 Missing Fields",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        352,
+        1056
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "formTitle": "อัปโหลดรายงาน Boiler 1 (อสร.หนองจอก)",
+        "formDescription": "เลือกไฟล์ Excel (.xlsx หรือ .xls) แล้วกดส่ง ระบบจะอ่านข้อมูล ตรวจความผิดปกติ และส่งผลไปที่เว็บ boiler-nongchok",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "ไฟล์ Excel",
+              "fieldType": "file",
+              "fieldName": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".xlsx,.xls",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "เครื่อง (asset_id)",
+              "fieldType": "dropdown",
+              "fieldName": "asset_id",
+              "defaultValue": "BOILER-1",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "BOILER-1"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "รหัสการอัปโหลด (ไม่บังคับ เว้นว่างได้)",
+              "fieldName": "upload_id",
+              "placeholder": "เว้นว่าง ระบบจะสร้างให้อัตโนมัติ"
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "ส่งไฟล์",
+          "path": "boiler-upload",
+          "respondWithOptions": {
+            "values": {
+              "formSubmittedText": "ได้รับไฟล์แล้ว ระบบกำลังประมวลผล ผลจะแสดงบนเว็บ boiler-nongchok ภายในไม่กี่นาที"
+            }
+          }
+        }
+      },
+      "id": "aad2aebc-4524-4fdc-aed3-f16168494f34",
+      "name": "Upload Excel File (Form)",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        272
+      ],
+      "webhookId": "48e0a363-6e09-4e2c-9cef-a6cae4347351",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://boiler-nongchok.netlify.app/api/v1/uploads/{{ encodeURIComponent($('Validate Upload Request').first().json.upload_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"status\":\"processing\",\"row_count\":0,\"rejected_count\":0,\"alert_count\":0,\"errors\":[]}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "6ae9b3b4-1adc-4ad9-a984-a62a3ea532fe",
+      "name": "Mark Upload Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        592,
+        496
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "uubIWzI4562VRNIj",
+          "name": "Simplified Custom Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "u5q3d4aafD8X42Fs",
+          "cachedResultName": "boiler_tag_mapping"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "approval_status",
+              "keyValue": "approved"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "7d349773-c6c3-4271-9db7-6e4007fdbf79",
+      "name": "Load Tag Mapping",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        512
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "kuRmuqITJhQRlXsc",
+          "cachedResultName": "boiler_rules"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "approval_status",
+              "keyValue": "approved"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "03a0f31e-65b1-498d-8567-e27aadebf703",
+      "name": "Load Approved Rules",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1024,
+        512
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "D0GuqkeC8yDsPiNw",
+          "cachedResultName": "boiler_feedback_cases"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "asset_id",
+              "keyValue": "={{ $('Validate Upload Request').first().json.asset_id }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "f31d7041-947f-4104-bd52-179c52281dd6",
+      "name": "Load Feedback Cases",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1248,
+        512
+      ],
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $('Validate Upload Request').first();\nreturn [{ json: v.json, binary: v.binary }];"
+      },
+      "id": "2c95614a-3f97-4065-8cd6-f4f5bb718a51",
+      "name": "Restore Uploaded File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        512
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "xlsx"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xlsx"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 1
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "xls"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xls"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "unsupported"
+        }
+      },
+      "id": "26d4e130-eea6-474d-931b-8f6aa6045984",
+      "name": "Route by File Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1696,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "={{ $json.binary_key }}",
+        "options": {
+          "headerRow": false,
+          "includeEmptyCells": true,
+          "rawData": true
+        }
+      },
+      "id": "e0ed0713-df05-433a-9bc0-38e9f350ffa9",
+      "name": "Read XLSX Sheet",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        320
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $('Validate Upload Request').first().json;\nconst GUIDE = 'วิธีเตรียมไฟล์ / How to prepare the file: บันทึกเป็น .xlsx; 1 ชีต = 1 ตารางข้อมูลรายวัน; มีแถวหัวตารางที่มีคอลัมน์ วันที่/Date และคอลัมน์ Tag; ห้ามผสานเซลล์ในพื้นที่ข้อมูล; ห้ามใส่รหัสผ่าน';\nconst SHEET = 'first_sheet';\nfunction fail(msg) {\n  return [{ json: { ok: false, patch: { status: 'failed', row_count: 0, rejected_count: 0, alert_count: 0, errors: [msg, GUIDE] } } }];\n}\ntry {\n  const inputsAll = $input.all();\n  if (req.file_type === 'unsupported') return fail('ไฟล์ไม่รองรับ / Unsupported file type: .' + (req.file_ext || 'unknown') + ' (' + req.file_name + '). รองรับเฉพาะ .xlsx และ .xls / Only .xlsx and .xls are accepted');\n  const errItem = inputsAll.find(function (i) { return i.json && i.json.error; });\n  if (errItem) { const e = errItem.json.error; return fail('อ่านไฟล์ไม่ได้ (อาจเสียหายหรือมีรหัสผ่าน) / Unreadable workbook ' + req.file_name + ': ' + String(typeof e === 'string' ? e : (e.message || JSON.stringify(e))).slice(0, 300)); }\n  const norm = function (s) { return String(s == null ? '' : s).toLowerCase().replace(/\\(.*?\\)/g, '').replace(/[^a-z0-9ก-๙]/g, ''); };\n  const mappings = $('Load Tag Mapping').all().map(function (i) { return i.json; })\n    .filter(function (m) { return m && m.metric_key && m.approval_status === 'approved' && (!m.asset_id || String(m.asset_id).toLowerCase() === req.asset_id); });\n  const grid = $input.all().filter(function (i) { return i.json && Object.keys(i.json).length > 0; }).map(function (i) {\n    const r = i.json.row;\n    if (Array.isArray(r)) return r;\n    return Object.keys(i.json).map(function (k) { return i.json[k]; });\n  });\n  if (!grid.length) return fail('เวิร์กบุ๊กว่างเปล่า / Workbook has no data rows (empty sheet) in ' + req.file_name);\n  if (!mappings.length) return fail('ยังไม่มี Tag mapping ที่วิศวกรอนุมัติ / No engineer-approved tag mapping for asset ' + req.asset_id + ' – approve rows in boiler_tag_mapping first');\n  const isBlank = function (v) { return v === null || v === undefined || String(v).trim() === ''; };\n  const DATE_HDR = /(^|\\s)(date|วันที่|วัน\\/เดือน|day)(\\s|$)/i;\n  let h = -1;\n  let dateCol = -1;\n  for (let r = 0; r < Math.min(grid.length, 40) && h < 0; r++) {\n    for (let c = 0; c < grid[r].length; c++) {\n      if (DATE_HDR.test(String(grid[r][c] || '').trim())) { h = r; dateCol = c; break; }\n    }\n  }\n  {\n    // Fallback / earlier header: the text row right above the first date-like row (handles garbled header text)\n    let h2 = -1;\n    for (let r = 1; r < Math.min(grid.length, 60); r++) {\n      const c0 = String(grid[r][0] == null ? '' : grid[r][0]).trim();\n      if (!/^\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{2,4}$/.test(c0) && !(typeof grid[r][0] === 'number' && grid[r][0] > 20000)) continue;\n      for (let q = r - 1; q >= 0; q--) {\n        const txt = (grid[q] || []).filter(function (v) { return !isBlank(v) && isNaN(Number(v)); }).length;\n        if (txt >= 3) { h2 = q; break; }\n        if (txt > 0) break;\n      }\n      if (h2 >= 0) break;\n    }\n    if (h2 >= 0 && (h < 0 || h2 < h)) { h = h2; dateCol = 0; }\n  }\n  if (h < 0) return fail('ไม่พบแถวหัวตารางที่มีคอลัมน์วันที่ / No header row with a Date column found in ' + req.file_name);\n  const width = Math.max.apply(null, grid.map(function (r) { return r.length; }));\n  const top = [];\n  let last = '';\n  for (let c = 0; c < width; c++) {\n    const v = grid[h][c];\n    if (!isBlank(v)) last = String(v).trim();\n    top.push(isBlank(v) ? (c > dateCol ? last : '') : String(v).trim());\n  }\n  let headers = top.slice();\n  let dataStart = h + 1;\n  const next = grid[h + 1] || [];\n  const nextText = next.filter(function (v) { return !isBlank(v) && isNaN(Number(String(v).replace(/,/g, ''))); }).length;\n  const nextNum = next.filter(function (v) { return !isBlank(v) && !isNaN(Number(String(v).replace(/,/g, ''))); }).length;\n  if (nextText > 0 && nextText >= nextNum && isBlank(next[dateCol])) {\n    headers = top.map(function (t, c) { const s = isBlank(next[c]) ? '' : String(next[c]).trim(); return (t && s && t !== s) ? (t + ' ' + s) : (t || s); });\n    dataStart = h + 2;\n  }\n  const colMap = {};\n  const unmapped = [];\n  for (let c = 0; c < headers.length; c++) {\n    if (c === dateCol || !headers[c]) continue;\n    const hn = norm(headers[c]);\n    let best = null;\n    for (const m of mappings) {\n      const cands = [norm(m.source_header), norm(m.tag)].filter(function (x) { return x && x.length >= 2; });\n      for (const cn of cands) {\n        const score = hn === cn ? 1000 : (hn.indexOf(cn) >= 0 && cn.length >= 3 ? cn.length : 0);\n        if (score > 0 && (!best || score > best.score)) best = { score: score, m: m };\n      }\n    }\n    if (best) colMap[c] = best.m; else if (unmapped.indexOf(headers[c]) < 0 && norm(headers[c]) !== norm(headers[dateCol])) unmapped.push(headers[c]);\n  }\n  if (!Object.keys(colMap).length) return fail('ไม่มีหัวคอลัมน์ที่ตรงกับ Tag mapping ที่อนุมัติ / No column header matches an approved tag mapping. Headers: ' + headers.filter(Boolean).join(', '));\n  const SUMMARY = /^(avg|average|used|total|sum|max|min|mean|เฉลี่ย|รวม|สูงสุด|ต่ำสุด)/i;\n  const pad = function (n) { return (n < 10 ? '0' : '') + n; };\n  const valid = function (y, m, d) { const dt = new Date(Date.UTC(y, m - 1, d)); return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d; };\n  const isoOf = function (y, m, d) { return y + '-' + pad(m) + '-' + pad(d); };\n  const dayNum = function (iso) { const p = iso.split('-').map(Number); return Date.UTC(p[0], p[1] - 1, p[2]) / 86400000; };\n  // Report range from title, e.g. \"01/01/2025 - 31/12/2025\" (the end date fixes dd/mm order)\n  let rangeStart = null; let rangeEnd = null;\n  for (let r = 0; r < h; r++) {\n    const t = (grid[r] || []).map(function (v) { return v == null ? '' : String(v); }).join(' ');\n    const mm = t.match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})\\s*-\\s*(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/);\n    if (mm) {\n      const fix = function (y) { y = Number(y); return y > 2400 ? y - 543 : y; };\n      const e1 = Number(mm[4]) > 12 ? 'dmy' : (Number(mm[5]) > 12 ? 'mdy' : 'dmy');\n      const mk = function (a, b, y) { return e1 === 'dmy' ? (valid(fix(y), Number(b), Number(a)) ? isoOf(fix(y), Number(b), Number(a)) : null) : (valid(fix(y), Number(a), Number(b)) ? isoOf(fix(y), Number(a), Number(b)) : null); };\n      rangeStart = mk(mm[1], mm[2], mm[3]); rangeEnd = mk(mm[4], mm[5], mm[6]);\n      break;\n    }\n  }\n  // All plausible readings of a date cell. Mixed exports (Excel auto-converted day<=12 as m/d) give two.\n  function candidates(v) {\n    const sv = String(v).trim();\n    if (typeof v === 'number' || /^\\d+(\\.\\d+)?$/.test(sv)) {\n      const n = Math.floor(Number(v));\n      if (n < 20000 || n > 80000) return { err: 'invalid_date' };\n      const dt = new Date(Date.UTC(1899, 11, 30) + n * 86400000);\n      const y = dt.getUTCFullYear(); const m = dt.getUTCMonth() + 1; const d = dt.getUTCDate();\n      const c = [{ iso: isoOf(y, m, d), rule: 'excel_serial' }];\n      if (d <= 12 && d !== m) c.push({ iso: isoOf(y, d, m), rule: 'excel_serial_day_month_swapped' });\n      return { c: c };\n    }\n    let m = sv.match(/^(\\d{4})-(\\d{1,2})-(\\d{1,2})/);\n    if (m) {\n      let y = Number(m[1]); if (y > 2400) y -= 543;\n      if (!valid(y, Number(m[2]), Number(m[3]))) return { err: 'invalid_date' };\n      return { c: [{ iso: isoOf(y, Number(m[2]), Number(m[3])), rule: 'iso' }] };\n    }\n    m = sv.match(/^(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{2,4})$/);\n    if (!m) return { err: 'invalid_date' };\n    const a = Number(m[1]); const b = Number(m[2]); let y = Number(m[3]);\n    const be = y > 2400 || (y < 100 && y >= 40);\n    if (y < 100) y = y >= 40 ? y + 2500 - 543 : y + 2000;\n    if (y > 2400) y -= 543;\n    const sfx = be ? '_be_minus_543' : '';\n    const c = [];\n    if (valid(y, b, a)) c.push({ iso: isoOf(y, b, a), rule: 'ddmmyyyy' + sfx });\n    if (valid(y, a, b) && a !== b) c.push({ iso: isoOf(y, a, b), rule: 'mmddyyyy' + sfx });\n    if (!c.length) return { err: 'invalid_date' };\n    return { c: c };\n  }\n  const inRange = function (iso) { return (!rangeStart || iso >= rangeStart) && (!rangeEnd || iso <= rangeEnd); };\n  // Pick the reading that continues the day-by-day sequence. Traceable rule; otherwise quarantine.\n  function choose(cands, prevIso, nextCands) {\n    const c = cands.filter(function (x) { return inRange(x.iso); });\n    if (!c.length) return { err: 'date_outside_report_range' };\n    const anchor = prevIso || (rangeStart ? isoOf.apply(null, new Date((dayNum(rangeStart) - 1) * 86400000).toISOString().slice(0, 10).split('-').map(Number)) : null);\n    if (c.length === 1) {\n      if (anchor && c[0].iso <= anchor && prevIso) return { err: 'date_out_of_sequence' };\n      return { iso: c[0].iso, rule: c[0].rule };\n    }\n    if (anchor) {\n      const ok = c.map(function (x) { return { x: x, gap: dayNum(x.iso) - dayNum(anchor) }; })\n        .filter(function (g) { return g.gap >= 1 && g.gap <= 31; })\n        .sort(function (p, q) { return p.gap - q.gap; });\n      if (ok.length === 1 || (ok.length > 1 && ok[0].gap < ok[1].gap)) return { iso: ok[0].x.iso, rule: ok[0].x.rule + '_resolved_by_day_sequence' };\n      if (!ok.length && nextCands && nextCands.length) {\n        const after = c.filter(function (x) { return x.iso > anchor && nextCands.some(function (n) { const g = dayNum(n.iso) - dayNum(x.iso); return g >= 1 && g <= 3; }); });\n        if (after.length === 1) return { iso: after[0].iso, rule: after[0].rule + '_resolved_by_next_row' };\n      }\n      return { err: 'ambiguous_date' };\n    }\n    if (nextCands && nextCands.length) {\n      const ok = c.filter(function (x) { return nextCands.some(function (n) { const g = dayNum(n.iso) - dayNum(x.iso); return g >= 1 && g <= 3; }); });\n      if (ok.length === 1) return { iso: ok[0].iso, rule: ok[0].rule + '_resolved_by_next_row' };\n    }\n    return { err: 'ambiguous_date' };\n  }\n  const hdrNorm = headers.map(norm);\n  const isRepeatHeader = function (line) {\n    if (DATE_HDR.test(String(line[dateCol] == null ? '' : line[dateCol]).trim())) return true;\n    let hit = 0; let txt = 0;\n    line.forEach(function (v, c) { if (!isBlank(v) && isNaN(Number(String(v).replace(/,/g, '')))) { txt++; if (hdrNorm[c] && norm(v) && hdrNorm[c].indexOf(norm(v)) >= 0) hit++; } });\n    return txt >= 3 && hit >= txt / 2;\n  };\n  const rows = [];\n  const review = [];\n  const seen = {};\n  let prevIso = null;\n  const work = [];\n  for (let r = dataStart; r < grid.length; r++) {\n    const line = grid[r] || [];\n    if (line.every(isBlank)) continue;\n    const first = String(line[dateCol] == null ? '' : line[dateCol]).trim();\n    const anyLabel = line.slice(0, Math.max(dateCol + 2, 2)).some(function (v) { return SUMMARY.test(String(v == null ? '' : v).trim()); });\n    if (SUMMARY.test(first) || anyLabel) continue;\n    if (isRepeatHeader(line)) continue;\n    const raw = {};\n    headers.forEach(function (hd, c) { if (hd) raw[hd] = isBlank(line[c]) ? null : line[c]; });\n    work.push({ r: r, line: line, raw: raw, cand: isBlank(line[dateCol]) ? { err: 'missing_date' } : candidates(line[dateCol]) });\n  }\n  for (let w = 0; w < work.length; w++) {\n    const it = work[w]; const line = it.line; const raw = it.raw;\n    const excelRow = it.r + 1;\n    if (it.cand.err) { review.push({ source_row: excelRow, reason: it.cand.err, raw: raw }); continue; }\n    let nextC = null;\n    for (let k = w + 1; k < work.length; k++) { if (work[k].cand.c) { nextC = work[k].cand.c; break; } }\n    const pd = choose(it.cand.c, prevIso, nextC);\n    if (pd.err) { review.push({ source_row: excelRow, reason: pd.err, raw: raw }); continue; }\n    if (seen[pd.iso]) { review.push({ source_row: excelRow, reason: 'duplicate_date', raw: raw }); continue; }\n    seen[pd.iso] = true;\n    prevIso = pd.iso;\n    const metrics = {};\n    Object.keys(colMap).forEach(function (c) {\n      const mp = colMap[c];\n      const cell = line[c];\n      let value = null; let quality = 'missing';\n      if (!isBlank(cell)) {\n        const num = Number(String(cell).replace(/,/g, '').trim());\n        if (isFinite(num)) { value = num; quality = 'good'; } else { quality = 'bad'; }\n      }\n      const prevM = metrics[mp.metric_key];\n      if (prevM && (prevM.quality !== 'missing' || quality === 'missing')) return; // merged-cell spill columns share a header\n      metrics[mp.metric_key] = { value: value, unit: mp.unit || '', quality: quality, tag: mp.tag || null, source_header: headers[c], raw: isBlank(cell) ? null : cell };\n    });\n    rows.push({ observed_date: pd.iso, timezone: 'Asia/Bangkok', date_rule: pd.rule, source_sheet: SHEET, source_row: excelRow, metrics: metrics, raw: raw });\n  }\n  rows.sort(function (x, y) { return x.observed_date < y.observed_date ? -1 : 1; });\n  if (!rows.length) {\n    const out = fail('ไม่มีแถวข้อมูลที่ใช้ได้ / No valid daily rows found (' + review.length + ' rows sent to review) in ' + req.file_name);\n    out[0].json.review = review.map(function (x) { return { upload_id: req.upload_id, asset_id: req.asset_id, file_name: req.file_name, source_sheet: SHEET, source_row: x.source_row, reason: x.reason, raw_json: JSON.stringify(x.raw), logged_at: new Date().toISOString() }; });\n    return out;\n  }\n  const batches = [];\n  for (let i = 0; i < rows.length; i += 200) {\n    batches.push({ upload_id: req.upload_id, asset_id: req.asset_id, rows: rows.slice(i, i + 200).map(function (x) {\n      const mm = {};\n      Object.keys(x.metrics).forEach(function (k) { mm[k] = { value: x.metrics[k].value, unit: x.metrics[k].unit, quality: x.metrics[k].quality }; });\n      return { observed_date: x.observed_date, timezone: 'Asia/Bangkok', source_sheet: x.source_sheet, source_row: x.source_row, metrics: mm };\n    }) });\n  }\n  return [{ json: {\n    ok: true,\n    header_row: h + 1,\n    headers: headers,\n    unmapped_headers: unmapped,\n    rows: rows,\n    obs_batches: batches,\n    review: review.map(function (x) { return { upload_id: req.upload_id, asset_id: req.asset_id, file_name: req.file_name, source_sheet: SHEET, source_row: x.source_row, reason: x.reason, raw_json: JSON.stringify(x.raw), logged_at: new Date().toISOString() }; }),\n    row_count: rows.length,\n    rejected_count: review.length\n  } }];\n} catch (e) {\n  return fail('ข้อผิดพลาดร้ายแรงขณะอ่านข้อมูล / Fatal parse error: ' + (e && e.message ? e.message : String(e)));\n}\n"
+      },
+      "id": "a4d8e788-be99-485d-b5ae-a970f29a9b89",
+      "name": "Normalize Daily Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xls",
+        "binaryPropertyName": "={{ $json.binary_key }}",
+        "options": {
+          "headerRow": false,
+          "includeEmptyCells": true,
+          "rawData": true
+        }
+      },
+      "id": "a49b0537-e2fe-4a6a-9c87-6bf9f47461cb",
+      "name": "Read XLS Sheet",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        512
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64acdd46-d061-4b00-94d0-402bc507c1d2",
+      "name": "Valid Rows Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2368,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "review",
+        "options": {}
+      },
+      "id": "eb995d8c-d199-4612-884f-2f36b1310346",
+      "name": "One Item per Rejected Row",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "k7Ff2c6Hs9yeT7P3",
+          "cachedResultName": "boiler_review_rows"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "options": {}
+      },
+      "id": "f508b64a-5667-4fbd-8170-f4f8579b1f9b",
+      "name": "Log Rejected Row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3824,
+        1264
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "obs_batches",
+        "options": {}
+      },
+      "id": "0805eb1d-d4d2-4905-bfd4-5c1e5b1afd62",
+      "name": "One Item per Observation Batch",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        3472,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://boiler-nongchok.netlify.app/api/v1/observations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "7d9f9e80-a76d-46be-923b-15e97353b6c3",
+      "name": "Post Observations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3696,
+        752
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "uubIWzI4562VRNIj",
+          "name": "Simplified Custom Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $('Validate Upload Request').first().json;\nconst parsed = $('Normalize Daily Data').first().json;\nconst rows = parsed.rows || [];\nconst nonEmpty = function (arr) { return arr.map(function (i) { return i.json; }).filter(function (x) { return x && Object.keys(x).length > 0; }); };\nconst rules = nonEmpty($('Load Approved Rules').all())\n  .filter(function (r) { return r.approval_status === 'approved' && (!r.asset_id || String(r.asset_id).toLowerCase() === req.asset_id); });\nconst mappings = nonEmpty($('Load Tag Mapping').all()).filter(function (m) { return m.approval_status === 'approved' && (!m.asset_id || String(m.asset_id).toLowerCase() === req.asset_id); });\nconst cases = nonEmpty($('Load Feedback Cases').all()).filter(function (c) { return String(c.asset_id).toLowerCase() === req.asset_id; });\nconst eco2Map = mappings.filter(function (m) { return /eco2/i.test(m.metric_key || '') || /eco2/i.test(m.source_header || ''); });\nconst eco2Confirmed = eco2Map.some(function (m) { return m.eco2_confirmed === true; });\nconst notes = [];\nconst fmt = function (v) { return v === null || v === undefined ? 'null' : (Math.round(v * 1000) / 1000).toString(); };\nconst val = function (row, k) { const m = row && row.metrics[k]; return m && m.quality === 'good' && typeof m.value === 'number' ? m.value : null; };\nconst met = function (row, k) { return (row && row.metrics[k]) || null; };\nconst isRunning = function (row) {\n  const rt = val(row, 'running_time'); const bp = val(row, 'boiler_pressure');\n  return (rt !== null && rt > 0) || (bp !== null && bp > 0);\n};\nfunction evalOpCond(rule, row) {\n  const oc = String(rule.operating_condition || '').trim();\n  if (!oc || /^always$/i.test(oc)) return true;\n  const parts = oc.split(/\\s+(?:or|\\|\\|)\\s+/i);\n  return parts.some(function (p) {\n    const m = p.match(/^([a-z0-9_]+)\\s*(>=|<=|>|<|==|=|!=)\\s*(-?[\\d.]+)$/i);\n    if (!m) return isRunning(row);\n    const v = val(row, m[1]); if (v === null) return false;\n    const t = Number(m[3]);\n    switch (m[2]) { case '>': return v > t; case '<': return v < t; case '>=': return v >= t; case '<=': return v <= t; case '!=': return v !== t; default: return v === t; }\n  });\n}\nfunction checkRow(rule, row, prev) {\n  const k = rule.metric_key; const v = val(row, k);\n  const lo = rule.threshold_low; const hi = rule.threshold_high;\n  const has = function (x) { return x !== null && x !== undefined && x !== '' && isFinite(Number(x)); };\n  const ev = function (metric, value, extra) { const m = met(row, metric) || {}; return Object.assign({ metric: metric, value: value, unit: m.unit || rule.unit || null, quality: m.quality || 'missing', source_sheet: row.source_sheet, source_row: row.source_row, raw: m.raw === undefined ? null : m.raw }, extra || {}); };\n  switch (rule.condition_type) {\n    case 'max': if (v !== null && has(hi) && v > Number(hi)) return [ev(k, v, { threshold: Number(hi), delta: v - Number(hi) })]; return null;\n    case 'min': if (v !== null && has(lo) && v < Number(lo)) return [ev(k, v, { threshold: Number(lo), delta: v - Number(lo) })]; return null;\n    case 'range':\n      if (v === null) return null;\n      if (has(hi) && v > Number(hi)) return [ev(k, v, { expected: fmt(lo) + '–' + fmt(hi), threshold: Number(hi), delta: v - Number(hi) })];\n      if (has(lo) && v < Number(lo)) return [ev(k, v, { expected: fmt(lo) + '–' + fmt(hi), threshold: Number(lo), delta: v - Number(lo) })];\n      return null;\n    case 'delta_day': {\n      const pv = val(prev, k); if (v === null || pv === null || !prev) return null;\n      const d = v - pv; const lim = has(hi) ? Number(hi) : (has(lo) ? Math.abs(Number(lo)) : null);\n      if (lim !== null && Math.abs(d) > lim) return [ev(k, v, { threshold: lim, delta: d, previous_value: pv, previous_source_row: prev.source_row })];\n      return null;\n    }\n    case 'diff_pair': {\n      const ck = rule.compare_metric_key; const cv = val(row, ck);\n      if (v === null || cv === null) return null;\n      const d = v - cv; const lim = has(hi) ? Number(hi) : null;\n      if (lim !== null && Math.abs(d) > lim) return [ev(k, v, { threshold: lim, delta: d }), ev(ck, cv, { delta: d })];\n      return null;\n    }\n    case 'zero_in_context': {\n      if (v === null || v !== 0) return null;\n      const bp = val(row, 'boiler_pressure'); const rt = val(row, 'running_time');\n      if ((bp !== null && bp > 0) || (rt !== null && rt > 0)) {\n        const out = [ev(k, v, { expected: '> 0 while boiler running' })];\n        if (bp !== null) out.push(ev('boiler_pressure', bp));\n        if (rt !== null) out.push(ev('running_time', rt));\n        return out;\n      }\n      return null;\n    }\n    default: return null;\n  }\n}\nconst alerts = [];\nconst insufficient = [];\nconst firedKeys = {};\nfunction makeAlert(rule, row, evidence, extraNote) {\n  const ruleId = rule.rule_id;\n  const eventKey = req.asset_id + '|' + row.observed_date + '|' + ruleId;\n  if (firedKeys[eventKey]) return; firedKeys[eventKey] = true;\n  const value = evidence[0] ? evidence[0].value : null;\n  const thr = evidence[0] ? (evidence[0].threshold !== undefined ? evidence[0].threshold : evidence[0].expected) : null;\n  let tpl = String(rule.message_template || (rule.category + ': ' + rule.metric_key + ' = {{value}} {{unit}}'));\n  tpl = tpl.replace(/\\{\\{\\s*value\\s*\\}\\}/g, fmt(value)).replace(/\\{\\{\\s*unit\\s*\\}\\}/g, (evidence[0] && evidence[0].unit) || '').replace(/\\{\\{\\s*threshold\\s*\\}\\}/g, thr === null || thr === undefined ? '' : String(thr)).replace(/\\{\\{\\s*date\\s*\\}\\}/g, row.observed_date);\n  let causes = [];\n  try { causes = Array.isArray(rule.suspected_causes) ? rule.suspected_causes : JSON.parse(rule.suspected_causes || '[]'); } catch (e) { causes = String(rule.suspected_causes || '').split(/[;\\n]/).map(function (s) { return s.trim(); }).filter(Boolean); }\n  const ruleCases = cases.filter(function (c) { return c.rule_id === ruleId || (c.category && c.category === rule.category); });\n  const similar = ruleCases.filter(function (c) { return c.dataset_use === 'similar_case' && c.verdict === 'confirmed'; })\n    .sort(function (a, b) { return String(b.reviewed_at || b.updated_at_source || '').localeCompare(String(a.reviewed_at || a.updated_at_source || '')); })\n    .slice(0, 3);\n  const fpCount = cases.filter(function (c) { return c.rule_id === ruleId && c.verdict === 'false_positive'; }).length;\n  let diagnosis = tpl;\n  if (/pressure/i.test(rule.metric_key || '') || /pressure/i.test(rule.category || '')) diagnosis += ' [daily pressure anomaly – การแกว่งภายในวันต้องใช้ข้อมูล Historian / intra-day oscillation needs Historian data]';\n  if (extraNote) diagnosis += ' ' + extraNote;\n  if (fpCount > 0) diagnosis += ' หมายเหตุ: กฎนี้เคยถูกวิศวกรระบุว่าแจ้งเตือนผิด (false positive) ' + fpCount + ' ครั้ง – ควรทบทวนเกณฑ์ / Note: this rule has ' + fpCount + ' false-positive feedback case(s); consider rule review.';\n  const sev = ['info', 'warning', 'high'].indexOf(rule.severity) >= 0 ? rule.severity : 'warning';\n  alerts.push({\n    event_key: eventKey,\n    upload_id: req.upload_id,\n    asset_id: req.asset_id,\n    observed_date: row.observed_date,\n    timezone: 'Asia/Bangkok',\n    granularity: 'daily',\n    category: rule.category,\n    severity: sev,\n    status: 'new',\n    rule_id: ruleId,\n    rule_version: rule.rule_version === null || rule.rule_version === undefined ? null : Number(rule.rule_version),\n    source: { file_name: req.file_name, sheet: row.source_sheet, row: row.source_row },\n    evidence: evidence,\n    diagnosis: diagnosis,\n    template_text: diagnosis,\n    suspected_causes: causes,\n    reference_docs: (rule.reference_doc || rule.reference_section) ? [{ doc: rule.reference_doc || '', section: rule.reference_section || '' }] : [],\n    analysis_method: 'rules',\n    similar_cases: similar.map(function (c) { return c.case_id; }),\n    similar_case_details: similar.map(function (c) { return { case_id: c.case_id, root_cause: c.root_cause, action_taken: c.action_taken }; }),\n    false_positive_history: fpCount\n  });\n}\nfor (const rule of rules) {\n  if (/eco2/i.test(rule.metric_key || '') && !eco2Confirmed) continue;\n  const dur = Math.max(1, Number(rule.duration_days) || 1);\n  let streak = [];\n  for (let i = 0; i < rows.length; i++) {\n    const row = rows[i]; const prev = i > 0 ? rows[i - 1] : null;\n    if (!evalOpCond(rule, row)) { streak = []; continue; }\n    const ev = checkRow(rule, row, prev);\n    if (ev) { streak.push({ row: row, ev: ev }); if (streak.length >= dur) { const allEv = dur > 1 ? [].concat.apply([], streak.slice(-dur).map(function (s) { return s.ev; })) : ev; makeAlert(rule, row, allEv, dur > 1 ? ('(ต่อเนื่อง ' + dur + ' วัน / ' + dur + ' consecutive days)') : ''); } }\n    else streak = [];\n  }\n}\n// built-in data-quality checks (category instrument_data_anomaly)\nconst dq = function (id, title) { return { rule_id: id, rule_version: 1, category: 'instrument_data_anomaly', severity: 'warning', metric_key: '', message_template: title, suspected_causes: '[]', reference_doc: 'Built-in data-quality check', reference_section: id }; };\nconst hasZeroRule = rules.some(function (r) { return r.condition_type === 'zero_in_context' && r.metric_key === 'steam_pressure'; });\nfor (let i = 0; i < rows.length; i++) {\n  const row = rows[i];\n  const sp = val(row, 'steam_pressure'); const bp = val(row, 'boiler_pressure'); const rt = val(row, 'running_time');\n  if (!hasZeroRule && sp === 0 && ((bp !== null && bp > 0) || (rt !== null && rt > 0))) {\n    const ev = [{ metric: 'steam_pressure', value: 0, unit: (met(row, 'steam_pressure') || {}).unit, quality: 'suspect', expected: '> 0 while boiler running', source_sheet: row.source_sheet, source_row: row.source_row, raw: (met(row, 'steam_pressure') || {}).raw }];\n    if (bp !== null) ev.push({ metric: 'boiler_pressure', value: bp, unit: (met(row, 'boiler_pressure') || {}).unit, quality: 'good', source_sheet: row.source_sheet, source_row: row.source_row, raw: (met(row, 'boiler_pressure') || {}).raw });\n    if (rt !== null) ev.push({ metric: 'running_time', value: rt, unit: (met(row, 'running_time') || {}).unit, quality: 'good', source_sheet: row.source_sheet, source_row: row.source_row, raw: (met(row, 'running_time') || {}).raw });\n    const r = dq('DQ-ZERO-CONTEXT', 'Steam Pressure = 0 ขณะ Boiler Pressure = ' + fmt(bp) + ' และ Running Time = ' + fmt(rt) + ' → ความผิดปกติของสัญญาณ/ข้อมูล (instrument/data anomaly) ไม่ใช่ความล้มเหลวของกระบวนการ ควรตรวจเครื่องมือวัด');\n    r.severity = 'warning';\n    r.suspected_causes = JSON.stringify(['Pressure transmitter / impulse line fault', 'Tag mapping or data-entry error', 'Logger not recording']);\n    makeAlert(r, row, ev, '');\n  }\n}\nconst flatMetrics = {};\nrows.forEach(function (r) { Object.keys(r.metrics).forEach(function (k) { flatMetrics[k] = true; }); });\nObject.keys(flatMetrics).forEach(function (k) {\n  if (k === 'running_time') return;\n  let run = [];\n  for (let i = 0; i < rows.length; i++) {\n    const v = val(rows[i], k);\n    if (v !== null && v !== 0 && run.length && val(run[run.length - 1], k) === v) run.push(rows[i]);\n    else run = v !== null && v !== 0 ? [rows[i]] : [];\n    if (run.length === 3) {\n      const r = dq('DQ-FLATLINE-' + k.toUpperCase(), k + ' ค่าเท่าเดิม ' + fmt(v) + ' ติดต่อกัน 3 วัน (flatline) – อาจเป็นค่าค้าง/ค่าที่รายงานโดยไม่ได้วัดจริง (reported value, quality suspect)');\n      r.severity = 'info';\n      r.suspected_causes = JSON.stringify(['Frozen transmitter or logger', 'Value copied forward manually']);\n      makeAlert(r, rows[i], run.map(function (x) { const m = met(x, k) || {}; return { metric: k, value: m.value, unit: m.unit, quality: 'suspect', source_sheet: x.source_sheet, source_row: x.source_row, raw: m.raw }; }), '');\n    }\n  }\n});\nif (eco2Map.length && !eco2Confirmed) notes.push('eco2_tag_unconfirmed: ความหมายของคอลัมน์ ECO2 ยังไม่ได้รับการยืนยันจาก Tag List – ไม่ประเมินการแจ้งเตือนอุณหภูมิ / ECO2 meaning not confirmed – no temperature alert evaluated');\nconst ruled = {};\nrules.forEach(function (r) { ruled[r.metric_key] = true; if (r.compare_metric_key) ruled[r.compare_metric_key] = true; });\nObject.keys(flatMetrics).forEach(function (k) { if (!ruled[k]) insufficient.push(k); });\nif (insufficient.length) notes.push('insufficient_criteria: no approved rule for ' + insufficient.join(', ') + ' – no alert evaluated');\nif (!rules.length) notes.push('no approved rules – alerts not evaluated');\nreturn [{ json: { alerts: alerts, alert_count: alerts.length, notes: notes, approved_rule_count: rules.length, eco2_confirmed: eco2Confirmed } }];\n"
+      },
+      "id": "9d46590a-9464-4346-a274-615a8e803f28",
+      "name": "Run Rule Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        752
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.alert_count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a35f2467-c911-42f9-aebc-5d260dfa0f43",
+      "name": "Any Alerts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4144,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "alerts",
+        "options": {}
+      },
+      "id": "1b4dc43a-1d45-412b-9a18-5460c300a39f",
+      "name": "One Item per Alert",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        4576,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=ข้อมูลการแจ้งเตือน (JSON):\n{{ JSON.stringify({ observed_date: $json.observed_date, category: $json.category, severity: $json.severity, rule_id: $json.rule_id, rule_version: $json.rule_version, rule_text: $json.template_text, evidence: $json.evidence, suspected_causes: $json.suspected_causes, reference_docs: $json.reference_docs, similar_cases: $json.similar_case_details, false_positive_history: $json.false_positive_history }) }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "คุณเป็นผู้ช่วยวิศวกรหม้อไอน้ำ Pilot Boiler 1 อสร.หนองจอก เขียนสรุปการแจ้งเตือนเป็นภาษาไทย 5 หัวข้อตามลำดับ: ตรวจพบ → บริบท → การวินิจฉัยเบื้องต้น → สาเหตุที่ควรตรวจ → ระดับการแจ้งเตือน. ใช้เฉพาะตัวเลข หน่วย และเอกสารอ้างอิงที่อยู่ใน JSON เท่านั้น ห้ามสร้างตัวเลขหรือเกณฑ์ใหม่ ห้ามเปลี่ยนระดับ severity (ให้ระบุตามค่า severity ใน JSON). ถ้ามี similar_cases ให้อ้างอิงด้วย case_id เท่านั้น. ถ้า false_positive_history > 0 ให้ระบุว่ากฎนี้เคยแจ้งเตือนผิดและควรทบทวน. ถ้าเป็น instrument_data_anomaly ให้ระบุว่าเป็นความผิดปกติของสัญญาณ/ข้อมูลที่ต้องตรวจสอบ ไม่ใช่ความล้มเหลวของกระบวนการ. ความยาวไม่เกิน 150 คำ ไม่ใช้ markdown heading."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "35f61bcb-17aa-4389-927f-e1d684f3b7c3",
+      "name": "AI Alert Summary",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        4800,
+        768
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5.4-mini",
+          "cachedResultName": "gpt-5.4-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "timeout": 60000,
+          "maxRetries": 1
+        }
+      },
+      "id": "bf0fd91f-2279-423e-b98a-71026002db16",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        4880,
+        992
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const run=()=>{\nconst src = $('One Item per Alert').all();\nconst ai = $input.all();\nreturn src.map(function (s, i) {\n  const a = Object.assign({}, s.json);\n  const r = ai[i] ? ai[i].json : null;\n  const text = r && !r.error && typeof r.text === 'string' ? r.text.trim() : '';\n  if (text.length > 20) {\n    a.diagnosis = text + '\\n\\n[ข้อความตามกฎ / Rule text] ' + a.template_text;\n    a.analysis_method = 'rules_with_ai_summary';\n  } else {\n    a.diagnosis = a.template_text;\n    a.analysis_method = 'rules';\n  }\n  delete a.template_text;\n  delete a.similar_case_details;\n  delete a.false_positive_history;\n  return { json: { alert: a } };\n});\n\n// The code above returns directly; transport adaptation is added by the wrapper below.\n\n};\nreturn run().map(item=>{\n const a=item.json.alert;\n a.rule_version=String(a.rule_version??'1');\n a.source={file:a.source.file||a.source.file_name||'',sheet:a.source.sheet,row:a.source.row};\n a.evidence=a.evidence.map(e=>({...e,unit:e.unit||''}));\n const docs=a.reference_docs||[];\n const notes=docs.filter(d=>!/^https?:\\/\\//.test(d.url||d.doc||''));\n if(notes.length)a.diagnosis+='\\nเอกสารอ้างอิงตามกฎ: '+notes.map(d=>[d.title||d.doc,d.section].filter(Boolean).join(' · ')).join('; ');\n a.reference_docs=docs.filter(d=>/^https?:\\/\\//.test(d.url||d.doc||'')).map(d=>({title:d.title||d.doc,url:d.url||d.doc}));\n return {json:{alert:a}};\n});"
+      },
+      "id": "f0a94676-dc99-4c8d-8cf5-6c40cf3f490d",
+      "name": "Assemble Alert Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5152,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://boiler-nongchok.netlify.app/api/v1/alerts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.alert) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "96269079-c3f0-4300-b007-aea64479d3f5",
+      "name": "Post Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5376,
+        768
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "uubIWzI4562VRNIj",
+          "name": "Simplified Custom Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Normalize Daily Data').first().json;\nif (!parsed.ok) return [{ json: { patch: parsed.patch } }];\nconst engine = $('Run Rule Engine').first().json;\nconst errors = [];\nconst errMsg = function (j) { const e = j.error; return e ? (typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e))) : ''; };\nlet obs = [];\ntry { obs = $('Post Observations').all(); } catch (e) { obs = []; }\nobs.forEach(function (o, i) { const m = errMsg(o.json); if (m) errors.push('observations batch ' + (i + 1) + ' failed: ' + String(m).slice(0, 300)); });\nlet posted = 0; let dup = 0; let failed = 0;\nlet alertItems = [];\ntry { alertItems = $('Post Alert').all(); } catch (e) { alertItems = []; }\nlet sent = [];\ntry { sent = $('Assemble Alert Payload').all(); } catch (e) { sent = []; }\nalertItems.forEach(function (a, i) {\n  const m = errMsg(a.json);\n  if (!m) { posted++; return; }\n  if (/409|already exists|duplicate/i.test(m)) { dup++; return; }\n  failed++;\n  const k = sent[i] ? sent[i].json.alert.event_key : String(i);\n  errors.push('alert ' + k + ' failed: ' + String(m).slice(0, 300));\n});\nif (parsed.rejected_count > 0) errors.push(parsed.rejected_count + ' row(s) sent to review (boiler_review_rows), e.g. ambiguous/missing date');\n(engine.notes || []).forEach(function (n) { errors.push(n); });\nif (parsed.unmapped_headers && parsed.unmapped_headers.length) errors.push('unmapped columns kept in raw only: ' + parsed.unmapped_headers.join(', '));\nconst hardIssue = parsed.rejected_count > 0 || failed > 0 || obs.some(function (o) { return !!errMsg(o.json); }) || engine.approved_rule_count === 0;\nreturn [{ json: { patch: {\n  status: hardIssue ? 'completed_with_errors' : 'completed',\n  row_count: parsed.row_count,\n  rejected_count: parsed.rejected_count,\n  alert_count: posted + dup,\n  errors: errors\n}, duplicate_alerts: dup } }];\n"
+      },
+      "id": "eaccf21d-1083-4f26-a8fd-ae9e1fbc7893",
+      "name": "Build Final Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5872,
+        -272
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://boiler-nongchok.netlify.app/api/v1/uploads/{{ encodeURIComponent($('Validate Upload Request').first().json.upload_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpTemplatedCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "00e973ef-c1ca-4543-bf0f-0a7aa9fe100c",
+      "name": "Update Upload Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6096,
+        -272
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpTemplatedCustomAuth": {
+          "id": "uubIWzI4562VRNIj",
+          "name": "Simplified Custom Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Excel Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook Request": {
+      "main": [
+        [
+          {
+            "node": "Request Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Complete?": {
+      "main": [
+        [
+          {
+            "node": "Respond 202 Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 Missing Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 202 Accepted": {
+      "main": [
+        [
+          {
+            "node": "Validate Upload Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Upload Request": {
+      "main": [
+        [
+          {
+            "node": "Mark Upload Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Excel File (Form)": {
+      "main": [
+        [
+          {
+            "node": "Validate Upload Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Upload Processing": {
+      "main": [
+        [
+          {
+            "node": "Load Tag Mapping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Tag Mapping": {
+      "main": [
+        [
+          {
+            "node": "Load Approved Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Approved Rules": {
+      "main": [
+        [
+          {
+            "node": "Load Feedback Cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Feedback Cases": {
+      "main": [
+        [
+          {
+            "node": "Restore Uploaded File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Uploaded File": {
+      "main": [
+        [
+          {
+            "node": "Route by File Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by File Type": {
+      "main": [
+        [
+          {
+            "node": "Read XLSX Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read XLS Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Daily Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read XLSX Sheet": {
+      "main": [
+        [
+          {
+            "node": "Normalize Daily Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Daily Data": {
+      "main": [
+        [
+          {
+            "node": "Valid Rows Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read XLS Sheet": {
+      "main": [
+        [
+          {
+            "node": "Normalize Daily Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Rows Found?": {
+      "main": [
+        [
+          {
+            "node": "One Item per Rejected Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "One Item per Observation Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "One Item per Rejected Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One Item per Rejected Row": {
+      "main": [
+        [
+          {
+            "node": "Log Rejected Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One Item per Observation Batch": {
+      "main": [
+        [
+          {
+            "node": "Post Observations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Observations": {
+      "main": [
+        [
+          {
+            "node": "Run Rule Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Rule Engine": {
+      "main": [
+        [
+          {
+            "node": "Any Alerts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Alerts?": {
+      "main": [
+        [
+          {
+            "node": "One Item per Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One Item per Alert": {
+      "main": [
+        [
+          {
+            "node": "AI Alert Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Alert Summary": {
+      "main": [
+        [
+          {
+            "node": "Assemble Alert Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Alert Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Alert Payload": {
+      "main": [
+        [
+          {
+            "node": "Post Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Alert": {
+      "main": [
+        [
+          {
+            "node": "Build Final Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Status": {
+      "main": [
+        [
+          {
+            "node": "Update Upload Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "369fefd9-f9c0-48e7-a8c0-ce13971a6637",
+  "meta": {
+    "instanceId": "5fd83399ebd26e68af88069a475c8760f19f8769c02bd1f88d4b56afcbb99972"
+  },
+  "nodeGroups": [
+    {
+      "id": "7ae68624-5815-4f51-9768-c87540692e62",
+      "name": "Accept website upload",
+      "nodeIds": [
+        "965357fe-fc35-46fa-b8fe-b0ae5bb9c990",
+        "4cbfe283-07b6-4d5b-a62a-7303a6c67497",
+        "f171b1d2-cecb-4da8-8f62-24a83af90d2f",
+        "4c84bc8c-3eed-4994-9120-7eff955549ac"
+      ],
+      "description": "Website calls only: checks file, upload_id and asset_id are present, then replies 202 or 400"
+    },
+    {
+      "id": "e9f0d9f9-aaed-4219-9d2a-4ba3e32b7d77",
+      "name": "Parse daily data",
+      "nodeIds": [
+        "7e8771e0-e66e-4bfc-879f-31af638e44bd",
+        "6ae9b3b4-1adc-4ad9-a984-a62a3ea532fe",
+        "7d349773-c6c3-4271-9db7-6e4007fdbf79",
+        "03a0f31e-65b1-498d-8567-e27aadebf703",
+        "f31d7041-947f-4104-bd52-179c52281dd6",
+        "2c95614a-3f97-4065-8cd6-f4f5bb718a51",
+        "26d4e130-eea6-474d-931b-8f6aa6045984",
+        "e0ed0713-df05-433a-9bc0-38e9f350ffa9",
+        "a49b0537-e2fe-4a6a-9c87-6bf9f47461cb",
+        "a4d8e788-be99-485d-b5ae-a970f29a9b89",
+        "64acdd46-d061-4b00-94d0-402bc507c1d2"
+      ],
+      "description": "Form or website upload: marks it processing, then uses approved tag mapping to turn the .xlsx/.xls sheet into dated daily rows with evidence; bla"
+    },
+    {
+      "id": "1dc51f6d-6df2-4c2f-ae76-f96cc54ef9d1",
+      "name": "Log rejected rows",
+      "nodeIds": [
+        "eb995d8c-d199-4612-884f-2f36b1310346",
+        "f508b64a-5667-4fbd-8170-f4f8579b1f9b"
+      ],
+      "description": "Ambiguous or missing dates and duplicate days are saved for engineer review instead of being guessed"
+    },
+    {
+      "id": "52e76ba5-c8d8-4b2e-96c5-2ab63b783265",
+      "name": "Evaluate approved rules",
+      "nodeIds": [
+        "0805eb1d-d4d2-4905-bfd4-5c1e5b1afd62",
+        "7d9f9e80-a76d-46be-923b-15e97353b6c3",
+        "9d46590a-9464-4346-a274-615a8e803f28",
+        "a35f2467-c911-42f9-aebc-5d260dfa0f43"
+      ],
+      "description": "Sends observations to the portal, then only engineer-approved rules plus data-quality checks decide alerts and severity"
+    },
+    {
+      "id": "e0793093-c4ac-4f0a-973f-66e4b1376450",
+      "name": "Publish alerts",
+      "nodeIds": [
+        "1b4dc43a-1d45-412b-9a18-5460c300a39f",
+        "35f61bcb-17aa-4389-927f-e1d684f3b7c3",
+        "bf0fd91f-2279-423e-b98a-71026002db16",
+        "f0a94676-dc99-4c8d-8cf5-6c40cf3f490d",
+        "96269079-c3f0-4300-b007-aea64479d3f5"
+      ],
+      "description": "Adds similar confirmed case IDs and a Thai AI summary (rule text if AI fails), then posts each alert with its event_key"
+    },
+    {
+      "id": "782203fa-5704-4c82-8ed0-c5d313352140",
+      "name": "Report upload status",
+      "nodeIds": [
+        "eaccf21d-1083-4f26-a8fd-ae9e1fbc7893",
+        "00e973ef-c1ca-4543-bf0f-0a7aa9fe100c"
+      ],
+      "description": "Tells the portal completed, completed_with_errors or failed, with row, rejected and alert counts plus errors"
+    }
+  ],
+  "id": "Bp9h1nHM9YAqwOeP",
+  "tags": []
+}
